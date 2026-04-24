@@ -3,7 +3,6 @@ from bs4_scraper import scrape_companies_bs4
 from selenium_scraper import scrape_companies_selenium
 from utils.csv_helper import save_to_csv
 from utils.json_helper import save_to_json
-from utils.db_helper import save_to_db
 from utils.selenium_helper import setup_selenium_driver
 import threading
 
@@ -50,14 +49,12 @@ def main():
 
     if companies:
         if export_format is None:
-            export_format = get_user_input("Choose export format (csv/json/db): ", 20, "csv")
+            export_format = get_user_input("Choose export format (csv/json): ", 20, "csv")
 
         if export_format == 'csv':
             save_to_csv(companies)
         elif export_format == 'json':
             save_to_json(companies)
-        elif export_format == 'db':
-            save_to_db(companies)
         else:
             print("Unsupported export format.")
             return
