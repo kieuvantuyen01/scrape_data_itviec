@@ -10,25 +10,41 @@ def get_headers():
     return headers
 
 def login(session):
-    login_url = f'{base_url}/sign_in'
-    headers = get_headers()
-    
-    response = session.get(login_url, headers=headers)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    
-    token = soup.find('input', {'name': 'authenticity_token'})['value']
-    
-    payload = {
-        'utf8': '✓',
-        'authenticity_token': token,
-        'user[email]': username,
-        'user[password]': password,
-        'commit': 'Sign in'
-    }
-    
-    response = session.post(login_url, data=payload, headers=headers)
-    
-    if "https://itviec.com" in response.url or 'sign-in-user-avatar' in response.text:
-        print("Login successful!")
-    else:
-        print("Login failed!")
+    try:
+        login_url = f'{base_url}/sign_in'
+        headers = get_headers()
+
+        # Kiểm tra credentials có được cấu hình chưa
+        if username == 'username' or password == 'password':
+            print("⚠ No credentials configured — crawling anonymously.")
+            return False
+
+        response = session.get(login_url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        token_tag = soup.find('input', {'name': 'authenticity_token'})
+        if not token_tag:
+            print("⚠ Login page blocked (Cloudflare/WAF) — crawling anonymously.")
+            return False
+
+        token = token_tag['value']
+
+        payload = {
+            'utf8': '✓',
+            'authenticity_token': token,
+            'user[email]': username,
+            'user[password]': password,
+            'commit': 'Sign in'
+        }
+
+        response = session.post(login_url, data=payload, headers=headers)
+
+        if "https://itviec.com" in response.url or 'sign-in-user-avatar' in response.text:
+            print("✅ Login successful!")
+            return True
+        else:
+            print("⚠ Login failed — crawling anonymously.")
+            return False
+    except Exception as e:
+        print(f"⚠ Login error: {e} — crawling anonymously.")
+        return False
