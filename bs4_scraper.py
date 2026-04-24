@@ -9,9 +9,10 @@ from utils.constants import base_url
 from utils.requests_helper import login, get_headers
 
 
-def extract_companies_from_page(soup):
-    """Trích xuất thông tin company trực tiếp từ cards trên trang listing."""
+def extract_companies_from_html(html_content):
+    """Trích xuất thông tin company từ đoạn HTML chứa các company cards."""
     companies = []
+    soup = BeautifulSoup(html_content, 'html.parser')
     
     # Cấu trúc: <a class="featured-company" href="/companies/xxx/review">
     cards = soup.find_all('a', class_='featured-company')
@@ -23,7 +24,6 @@ def extract_companies_from_page(soup):
         href = card.get('href', '')
         if href:
             company['URL'] = f'{base_url}{href}'
-            # Slug: /companies/xxx/review → xxx
             slug = href.replace('/companies/', '').replace('/review', '')
             company['Slug'] = slug
         
@@ -57,23 +57,20 @@ def extract_companies_from_page(soup):
                     if nums:
                         company['Reviews'] = int(nums[0])
         
-        # Best about (highly rated field)
+        # Best about
         rated = card.find('div', class_='company__rated')
         if rated:
             rated_text = rated.get_text(separator=' ', strip=True)
-            # Remove "Best about" prefix
             rated_text = re.sub(r'^Best\s+about\s*', '', rated_text, flags=re.IGNORECASE).strip()
             if rated_text:
                 company['Best About'] = rated_text
         
-        # Company description (text after header, before footer)
+        # Company description
         info_div = card.find('div', class_='company__info')
         if info_div:
-            # Text trực tiếp trong company__info (không thuộc header/footer)
             header = info_div.find('header')
             footer_tag = info_div.find('footer')
             if header and footer_tag:
-                # Lấy text giữa header và footer
                 desc_parts = []
                 for sibling in header.next_siblings:
                     if sibling == footer_tag:
@@ -89,6 +86,86 @@ def extract_companies_from_page(soup):
             companies.append(company)
     
     return companies
+
+
+def fetch_all_companies_via_api(session, headers):
+    """Fetch TẤT CẢ companies thông qua ITviec API (như khi click See More)."""
+    all_companies = []
+    
+    # Lần đầu lấy 6 công ty từ trang chủ HTML
+    print("📡 Lấy 6 công ty đầu tiên từ trang listing...")
+    response = session.get(f'{base_url}/companies/review-company', headers=headers)
+    
+    if response.status_code == 200:
+        first_batch = extract_companies_from_html(response.text)
+        all_companies.extend(first_batch)
+        print(f"   => Lấy được {len(first_batch)} công ty.")
+    
+    # Lấy tiếp qua API
+    offset = 6
+    count = 18
+    page = 1
+    
+    while True:
+        print(f"📡 API Pagination #{page} (offset={offset}, count={count})...")
+        api_url = f'{base_url}/api/v1/employers/most-popular'
+        
+        params = {
+            'city': '',
+            'rating_type': '',
+            'count': count,
+            'locale': 'en',
+            'offset': offset,
+            'show_cta': 'false'
+        }
+        
+        # Header cần thiết cho AJAX request
+        ajax_headers = headers.copy()
+        ajax_headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
+        ajax_headers['X-Requested-With'] = 'XMLHttpRequest'
+        ajax_headers['Referer'] = f'{base_url}/companies/review-company'
+        
+        res = session.get(api_url, headers=ajax_headers, params=params)
+        
+        if res.status_code != 200:
+            print(f"   ⚠ Lỗi API: HTTP {res.status_code}")
+            break
+            
+        try:
+            data = res.json()
+            html_snippet = data.get('html', '')
+            returned_count = data.get('count', 0)
+            
+            if not html_snippet:
+                print("   => Hết dữ liệu (không có html).")
+                break
+                
+            batch_companies = extract_companies_from_html(html_snippet)
+            all_companies.extend(batch_companies)
+            print(f"   => Nhận thêm {len(batch_companies)} công ty. (Tổng: {len(all_companies)})")
+            
+            if returned_count < count:
+                print("   => Đã hết danh sách (result < count).")
+                break
+                
+            offset += returned_count
+            page += 1
+            time.sleep(random.uniform(1.5, 3.0))
+            
+        except Exception as e:
+            print(f"   ⚠ Lỗi Parse JSON: {e}")
+            break
+
+    # Lọc trùng lặp
+    unique_companies = []
+    seen_slugs = set()
+    for c in all_companies:
+        slug = c.get('Slug')
+        if slug not in seen_slugs:
+            seen_slugs.add(slug)
+            unique_companies.append(c)
+
+    return unique_companies
 
 
 def scrape_company_detail(session, headers, company_url):
@@ -116,8 +193,6 @@ def scrape_company_detail(session, headers, company_url):
             response = session.get(overview_link, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Tìm tất cả các thông tin có thể
-        # Duyệt tất cả text blocks có class chứa "company__"
         for div in soup.find_all(['div', 'section', 'p'], class_=re.compile(r'company__')):
             cls = ' '.join(div.get('class', []))
             text = div.get_text(separator='\n', strip=True)
@@ -150,41 +225,27 @@ def scrape_companies_bs4():
     login(session)
     headers = get_headers()
     
-    # Debug directory
     debug_dir = 'debug'
     os.makedirs(debug_dir, exist_ok=True)
     
-    # ══════════════════════════════════════════════════
-    # Step 1: Lấy danh sách companies từ listing page
-    # ══════════════════════════════════════════════════
+    # ==========================================
+    # Step 1: Lấy TẤT CẢ danh sách qua API JS
+    # ==========================================
     print('=' * 50)
-    print('📋 Step 1: Extracting companies from listing...')
+    print('📋 Step 1: Extracting all companies via API...')
     print('=' * 50)
     
-    response = session.get(f'{base_url}/companies/review-company', headers=headers)
-    print(f'   Status: {response.status_code}, Size: {len(response.content)} bytes')
-    
-    # Lưu debug HTML
-    with open(f'{debug_dir}/companies-page.html', 'wb') as f:
-        f.write(response.content)
-    
-    soup = BeautifulSoup(response.content, 'html.parser')
-    title = soup.find('title')
-    print(f'   Page title: {title.text.strip() if title else "(no title)"}')
-    
-    companies = extract_companies_from_page(soup)
-    print(f'   ✅ Extracted {len(companies)} companies from listing page')
-    
-    for c in companies:
-        print(f'      - {c.get("Name", "?")} ({c.get("City", "?")}) ⭐{c.get("Rating", "?")}')
+    companies = fetch_all_companies_via_api(session, headers)
     
     if not companies:
-        print('❌ No companies found on listing page.')
+        print('❌ Không tìm thấy công ty nào.')
         return []
+        
+    print(f'\n✅ Đã lấy thành công {len(companies)} companies độc nhất.')
     
-    # ══════════════════════════════════════════════════
+    # ==========================================
     # Step 2: Lấy thêm chi tiết từ từng company page
-    # ══════════════════════════════════════════════════
+    # ==========================================
     print('\n' + '=' * 50)
     print('📋 Step 2: Enriching with company page details...')
     print('=' * 50)
@@ -197,16 +258,8 @@ def scrape_companies_bs4():
         detail_url = f'{base_url}/companies/{slug}'
         print(f'  [{i}/{len(companies)}] {company.get("Name", "?")}...')
         
-        # Debug: lưu HTML company page đầu tiên
-        if i == 1:
-            try:
-                debug_response = session.get(detail_url, headers=headers)
-                with open(f'{debug_dir}/company-detail-sample.html', 'wb') as f:
-                    f.write(debug_response.content)
-                print(f'      Debug HTML saved for first company')
-            except Exception:
-                pass
-        
+        # Chỉ fetch chi tiết nếu bạn cần. (Comment out nếu tốc độ quan trọng hơn)
+        # Để crawl nhanh, có thể bỏ qua bước này.
         extra = scrape_company_detail(session, headers, detail_url)
         if extra:
             company.update(extra)
@@ -214,9 +267,9 @@ def scrape_companies_bs4():
         else:
             print(f'      ℹ  No extra details')
         
-        time.sleep(random.randint(1, 3))
+        # Delay để không bị block
+        time.sleep(random.uniform(0.5, 1.5))
     
-    # Xoá slug khỏi output (internal use only)
     for c in companies:
         c.pop('Slug', None)
     
