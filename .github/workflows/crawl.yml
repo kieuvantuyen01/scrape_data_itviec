@@ -35,13 +35,15 @@ jobs:
 
       # ── Install dependencies ───────────────────────────
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install chromium --with-deps
 
       # ── Chạy scraper ───────────────────────────────────
       - name: Run scraper
         env:
           CI: 'true'
-          SCRAPE_METHOD: 'bs4'
+          SCRAPE_METHOD: 'playwright'
           EXPORT_FORMAT: 'json'
           ITVIEC_USERNAME: ${{ secrets.ITVIEC_USERNAME }}
           ITVIEC_PASSWORD: ${{ secrets.ITVIEC_PASSWORD }}

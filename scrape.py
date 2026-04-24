@@ -1,6 +1,7 @@
 import os
 from bs4_scraper import scrape_companies_bs4
 from selenium_scraper import scrape_companies_selenium
+from playwright_scraper import scrape_companies_playwright
 from utils.csv_helper import save_to_csv
 from utils.json_helper import save_to_json
 from utils.selenium_helper import setup_selenium_driver
@@ -22,14 +23,16 @@ def main():
     ci_mode = os.environ.get('CI', '') == 'true'
 
     if ci_mode:
-        method = os.environ.get('SCRAPE_METHOD', 'bs4').lower()
+        method = os.environ.get('SCRAPE_METHOD', 'playwright').lower()
         export_format = os.environ.get('EXPORT_FORMAT', 'json').lower()
         print(f"🤖 CI mode: method={method}, export={export_format}")
     else:
         method = get_user_input("Choose scraping method (bs4/selenium): ", 20, "bs4")
         export_format = None  # sẽ hỏi sau khi scrape xong
 
-    if method == 'bs4':
+    if method == 'playwright':
+        companies = scrape_companies_playwright()
+    elif method == 'bs4':
         companies = scrape_companies_bs4()
     elif method == 'selenium':
         if ci_mode:
