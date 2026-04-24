@@ -216,6 +216,16 @@ def scrape_company_detail(session, headers, company_url):
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
+        # Trích xuất Tên công ty (rất quan trọng cho các công ty lấy từ danh bạ A-Z)
+        name_tag = soup.find('h1')
+        if name_tag:
+            details['Name'] = name_tag.text.strip()
+            
+        # Trích xuất địa chỉ cơ bản
+        address_tags = soup.select('.location, .country, .city, .address')
+        if address_tags:
+            details['Location'] = address_tags[0].get_text(separator=' ', strip=True)
+            
         # Tìm overview tab
         overview_link = None
         for a in soup.find_all('a'):
