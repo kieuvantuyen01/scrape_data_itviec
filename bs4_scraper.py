@@ -1,4 +1,5 @@
 import requests
+import cloudscraper
 import time
 import random
 from bs4 import BeautifulSoup
@@ -81,7 +82,7 @@ def get_company_details_bs4(session, headers, company_url):
     return details
 
 def scrape_companies_bs4():
-    session = requests.Session()
+    session = cloudscraper.create_scraper()
     login(session)
     headers = get_headers()
     
