@@ -8,175 +8,180 @@ from bs4 import BeautifulSoup
 from utils.constants import base_url
 from utils.requests_helper import login, get_headers
 
-def get_total_companies(soup):
-    """Tìm tổng số company với nhiều fallback selector."""
-    try:
-        # Thử selector gốc
-        container = soup.find("div", class_="icontainer-sm")
-        if container:
-            h1 = container.find("h1", class_="imy-6")
-            if h1:
-                nums = re.findall(r'\d+', h1.text)
-                if nums:
-                    return int(nums[0])
-
-        # Fallback 1: tìm bất kỳ h1 nào chứa số + "companies"
-        for h1 in soup.find_all('h1'):
-            if 'compan' in h1.text.lower():
-                nums = re.findall(r'\d+', h1.text)
-                if nums:
-                    print(f"  (found via h1 fallback: '{h1.text.strip()}')") 
-                    return int(nums[0])
-
-        # Fallback 2: tìm bất kỳ tag nào chứa pattern "N companies"
-        text = soup.get_text()
-        match = re.search(r'(\d+)\s+compan', text, re.IGNORECASE)
-        if match:
-            print(f"  (found via text regex fallback)")
-            return int(match.group(1))
-
-        # Fallback 3: đếm trực tiếp số company elements trên trang
-        company_cards = soup.find_all('div', class_=re.compile(r'company', re.IGNORECASE))
-        if company_cards:
-            count = len(company_cards)
-            print(f"  (fallback: found {count} company cards on page)")
-            return count
-
-        print("⚠ Could not determine total companies count")
-        return 0
-    except Exception as e:
-        print(f"Error getting total number of companies: {e}")
-        return 0
-
-def click_see_more(session, headers):
-    try:
-        response = session.get(f"{base_url}/companies/review-company", headers=headers)
+def get_company_urls_from_listing(session, headers):
+    """Thu thập tất cả URL company từ trang review-company.
+    
+    Trang listing hiện tại dùng JS button 'See more' nên chỉ
+    scrape được các featured companies trên trang đầu tiên
+    bằng requests. Để lấy thêm, ta duyệt thêm trang 
+    /companies/review-company?page=N
+    """
+    all_urls = set()
+    page = 1
+    
+    while True:
+        url = f'{base_url}/companies/review-company?page={page}'
+        print(f'📡 Fetching page {page}: {url}')
+        
+        response = session.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f'   ⚠ Status {response.status_code}, stopping.')
+            break
+        
         soup = BeautifulSoup(response.content, 'html.parser')
-        see_more_button = soup.find("div", class_="show-more text-center imt-3") or soup.find("span", text="See more")
-        if see_more_button:
-            see_more_url = see_more_button.parent['href']
-            response = session.get(f"{base_url}{see_more_url}", headers=headers)
-            return response.content
-        else:
-            return None
-    except Exception as e:
-        print(f"Error clicking 'See more': {e}")
-        return None
+        
+        # Tìm tất cả company cards (cấu trúc mới: <a class="featured-company" href="...">)
+        company_cards = soup.find_all('a', class_='featured-company')
+        
+        if not company_cards:
+            print(f'   No more companies found on page {page}.')
+            break
+        
+        new_count = 0
+        for card in company_cards:
+            href = card.get('href', '')
+            if '/companies/' in href:
+                # Chuyển /companies/xxx/review → /companies/xxx
+                company_slug = href.replace('/review', '')
+                full_url = f'{base_url}{company_slug}'
+                if full_url not in all_urls:
+                    all_urls.add(full_url)
+                    new_count += 1
+        
+        print(f'   Found {len(company_cards)} cards, {new_count} new. Total: {len(all_urls)}')
+        
+        if new_count == 0:
+            print('   No new companies, stopping pagination.')
+            break
+        
+        page += 1
+        time.sleep(random.randint(1, 3))
+    
+    return list(all_urls)
+
 
 def get_company_details_bs4(session, headers, company_url):
+    """Scrape chi tiết từng company từ trang overview."""
     response = session.get(company_url, headers=headers)
     soup = BeautifulSoup(response.content, 'html.parser')
     details = {}
     
     try:
-        overview_tab = soup.find("a", {"data-controller": "utm-tracking", "class": "tab-link"}, text="Overview")
-        if overview_tab:
+        # Thử tìm Overview tab và navigate tới
+        overview_tab = soup.find("a", {"data-controller": "utm-tracking", "class": "tab-link"})
+        if overview_tab and 'overview' in overview_tab.get('href', '').lower():
             overview_url = f"{base_url}{overview_tab['href']}"
             response = session.get(overview_url, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
         
-        name_tag = soup.find("div", class_="company__name")
-        location_tag = soup.find("div", class_="company__location")
-        type_tag = soup.find("div", class_="company__type")
-        description_tag = soup.find("div", class_="company__description")
-
+        # Company name: thử h1, h4, hoặc div
+        name_tag = (soup.find("h1", class_=re.compile(r'company.*name', re.IGNORECASE)) or
+                    soup.find("h4", class_=re.compile(r'company.*name', re.IGNORECASE)) or
+                    soup.find("div", class_="company__name"))
+        
         if name_tag:
             details['Name'] = name_tag.text.strip()
-        if location_tag:
-            details['City'] = location_tag.text.strip()
+        
+        # Location / City
+        city_tag = (soup.find("span", class_=re.compile(r'company.*city', re.IGNORECASE)) or
+                    soup.find("div", class_="company__location"))
+        if city_tag:
+            details['City'] = city_tag.text.strip()
+        
+        # Company type
+        type_tag = soup.find("div", class_="company__type")
         if type_tag:
             details['Type'] = type_tag.text.strip()
+        
+        # Description
+        description_tag = soup.find("div", class_="company__description")
         if description_tag:
             details['Description'] = description_tag.text.strip()
 
+        # General info
         general_info_tag = soup.find("div", class_="company__general-info")
-        overview_tag = soup.find("div", class_="company__overview")
-
         if general_info_tag:
             details['General Information'] = general_info_tag.text.strip()
+        
+        # Overview
+        overview_tag = soup.find("div", class_="company__overview")
         if overview_tag:
             details['Company Overview'] = overview_tag.text.strip()
 
+        # Key skills
         key_skills_tag = soup.find("div", class_="company__key-skills")
-        location_tag = soup.find("div", class_="company__location")
-        love_working_here_tag = soup.find("div", class_="company__love-working-here")
-
         if key_skills_tag:
             details['Our Key Skills'] = key_skills_tag.text.strip()
+        
+        # Location (full)
+        location_tag = soup.find("div", class_="company__location")
         if location_tag:
             details['Location'] = location_tag.text.strip()
+        
+        # Why you'll love working here
+        love_working_here_tag = soup.find("div", class_="company__love-working-here")
         if love_working_here_tag:
-            details['Why You\'ll Love Working Here'] = love_working_here_tag.text.strip()
+            details["Why You'll Love Working Here"] = love_working_here_tag.text.strip()
+
+        # Star rating
+        star_tag = soup.find("span", class_="company__star-rate")
+        if star_tag:
+            details['Rating'] = star_tag.text.strip()
+        
+        # URL
+        details['URL'] = company_url
 
     except Exception as e:
         print(f"Error extracting company details: {e}")
-
+    
     return details
+
 
 def scrape_companies_bs4():
     session = cloudscraper.create_scraper()
     login(session)
     headers = get_headers()
     
-    print(f"📡 Fetching {base_url}/companies/review-company ...")
-    response = session.get(f'{base_url}/companies/review-company', headers=headers)
-    print(f"   Status: {response.status_code}, Size: {len(response.content)} bytes")
-    
     # Debug: lưu HTML để kiểm tra (sẽ upload artifact trong CI)
     debug_dir = 'debug'
     os.makedirs(debug_dir, exist_ok=True)
-    with open(f'{debug_dir}/companies-page.html', 'wb') as f:
-        f.write(response.content)
-    print(f"   Debug HTML saved to {debug_dir}/companies-page.html")
     
-    soup = BeautifulSoup(response.content, 'html.parser')
+    # Bước 1: Thu thập tất cả company URLs
+    print('=' * 50)
+    print('📋 Step 1: Collecting company URLs...')
+    print('=' * 50)
+    company_urls = get_company_urls_from_listing(session, headers)
     
-    # Debug: in title để kiểm tra có bị redirect/block không
-    title = soup.find('title')
-    print(f"   Page title: {title.text.strip() if title else '(no title)'}")
+    if not company_urls:
+        # Fallback: lưu HTML debug
+        response = session.get(f'{base_url}/companies/review-company', headers=headers)
+        with open(f'{debug_dir}/companies-page.html', 'wb') as f:
+            f.write(response.content)
+        print('❌ No company URLs found. Debug HTML saved.')
+        return []
     
-    total_companies = get_total_companies(soup)
-    print(f'Total number of companies to scrape: {total_companies}')
+    print(f'\n✅ Found {len(company_urls)} unique companies')
     
-    companies_scraped = 0
-    scraped_company_urls = set()
+    # Bước 2: Scrape chi tiết từng company
+    print('=' * 50)
+    print('📋 Step 2: Scraping company details...')
+    print('=' * 50)
+    
     companies = []
-    
-    while companies_scraped < total_companies:
-        company_elements = soup.find_all('div', class_='company')
-        
-        for company in company_elements:
-            company_link = company.find('a', class_='company__link')['href']
-            if company_link in scraped_company_urls:
-                continue
-            scraped_company_urls.add(company_link)
-            company_url = f'{base_url}{company_link}'
-            
-            company_name = company.find('div', class_='company__name').text.strip()
-            print(f'Scraping {company_name} ({companies_scraped + 1}/{total_companies})')
-
-            try:
-                company_details = get_company_details_bs4(session, headers, company_url)
-                if company_details:
-                    companies.append(company_details)
-
-                print(f"Scraped data for {company_name}")
-                
-                companies_scraped += 1
-                if companies_scraped >= total_companies:
-                    break
-                
-            except Exception as e:
-                print(f'Failed to scrape {company_url}: {e}')
-            
-            time.sleep(random.randint(1, 10))  # Be respectful of the server; add delay between requests
-        
-        # Click "See more" to load more companies if needed
-        if companies_scraped < total_companies:
-            response_content = click_see_more(session, headers)
-            if response_content:
-                soup = BeautifulSoup(response_content, 'html.parser')
+    for i, url in enumerate(company_urls, 1):
+        print(f'  [{i}/{len(company_urls)}] {url}')
+        try:
+            details = get_company_details_bs4(session, headers, url)
+            if details and details.get('Name'):
+                companies.append(details)
+                print(f'    ✅ {details["Name"]}')
             else:
-                break
+                print(f'    ⚠ No data extracted')
+        except Exception as e:
+            print(f'    ❌ Error: {e}')
+        
+        # Be respectful: delay giữa các request
+        time.sleep(random.randint(1, 3))
     
+    print(f'\n✅ Scraped {len(companies)} companies successfully')
     return companies
