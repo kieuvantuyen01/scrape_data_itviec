@@ -168,6 +168,44 @@ def fetch_all_companies_via_api(session, headers):
     return unique_companies
 
 
+def fetch_companies_by_alphabet(session, headers):
+    """Lấy danh sách các công ty thông qua trang danh bạ jobs-company-index."""
+    all_slugs = set()
+    print("\n📡 Bắt đầu quét danh bạ công ty (Alphabet Index)...")
+    
+    indexes = [
+        '', # Trang đầu (A-C)
+        '/d-f',
+        '/g-i',
+        '/j-l',
+        '/m-o',
+        '/p-r',
+        '/s-u',
+        '/v-x',
+        '/y-z',
+        '/others'
+    ]
+    
+    for idx in indexes:
+        url = f'{base_url}/jobs-company-index{idx}'
+        try:
+            res = session.get(url, headers=headers)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, 'html.parser')
+                for a in soup.find_all('a'):
+                    href = a.get('href', '')
+                    if href.startswith('/companies/'):
+                        slug = href.replace('/companies/', '').split('?')[0].replace('/review', '').strip('/')
+                        if slug:
+                            all_slugs.add(slug)
+        except Exception:
+            pass
+        time.sleep(random.uniform(0.2, 0.5))
+        
+    print(f"   => Quét được {len(all_slugs)} slugs công ty độc nhất từ danh bạ.")
+    return list(all_slugs)
+
+
 def scrape_company_detail(session, headers, company_url):
     """Scrape thêm chi tiết từ trang company riêng (overview)."""
     details = {}
@@ -237,11 +275,25 @@ def scrape_companies_bs4():
     
     companies = fetch_all_companies_via_api(session, headers)
     
+    # Bước 1.5: Vét cạn thêm bằng A-Z
+    extra_slugs = fetch_companies_by_alphabet(session, headers)
+    
+    # Lọc ra những slug chưa có trong danh sách 'companies'
+    existing_slugs = {c.get('Slug') for c in companies if c.get('Slug')}
+    new_slugs = [slug for slug in extra_slugs if slug not in existing_slugs]
+    
+    # Tạo object cơ bản cho các công ty mới tìm được
+    for slug in new_slugs:
+        companies.append({
+            'Slug': slug,
+            'URL': f'{base_url}/companies/{slug}'
+        })
+    
     if not companies:
         print('❌ Không tìm thấy công ty nào.')
         return []
         
-    print(f'\n✅ Đã lấy thành công {len(companies)} companies độc nhất.')
+    print(f'\n✅ Đã lấy thành công tổng cộng {len(companies)} companies (phổ biến + vét cạn A-Z).')
     
     # ==========================================
     # Step 2: Lấy thêm chi tiết từ từng company page
