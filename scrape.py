@@ -1,3 +1,4 @@
+import os
 from bs4_scraper import scrape_companies_bs4
 from selenium_scraper import scrape_companies_selenium
 from utils.csv_helper import save_to_csv
@@ -18,12 +19,24 @@ def get_user_input(prompt, timeout, default):
     return user_input
 
 def main():
-    method = get_user_input("Choose scraping method (bs4/selenium): ", 20, "bs4")
+    # CI mode: đọc từ environment variables (không cần interactive input)
+    ci_mode = os.environ.get('CI', '') == 'true'
+
+    if ci_mode:
+        method = os.environ.get('SCRAPE_METHOD', 'bs4').lower()
+        export_format = os.environ.get('EXPORT_FORMAT', 'json').lower()
+        print(f"🤖 CI mode: method={method}, export={export_format}")
+    else:
+        method = get_user_input("Choose scraping method (bs4/selenium): ", 20, "bs4")
+        export_format = None  # sẽ hỏi sau khi scrape xong
 
     if method == 'bs4':
         companies = scrape_companies_bs4()
     elif method == 'selenium':
-        browser = get_user_input("Choose browser (firefox/safari/edge): ", 20, "safari")
+        if ci_mode:
+            browser = os.environ.get('BROWSER', 'firefox')
+        else:
+            browser = get_user_input("Choose browser (firefox/safari/edge): ", 20, "safari")
         driver = setup_selenium_driver(browser)
         if driver:
             companies = scrape_companies_selenium(driver)
@@ -36,7 +49,9 @@ def main():
         return
 
     if companies:
-        export_format = get_user_input("Choose export format (csv/json/db): ", 20, "csv")
+        if export_format is None:
+            export_format = get_user_input("Choose export format (csv/json/db): ", 20, "csv")
+
         if export_format == 'csv':
             save_to_csv(companies)
         elif export_format == 'json':
@@ -46,9 +61,20 @@ def main():
         else:
             print("Unsupported export format.")
             return
-        print(f'Scraping completed. Data saved to companies_detailed.{export_format if export_format != "db" else "MySQL"}')
+
+        # Trong CI mode, export cả CSV và JSON
+        if ci_mode:
+            if export_format != 'csv':
+                save_to_csv(companies)
+            if export_format != 'json':
+                save_to_json(companies)
+
+        print(f'✅ Scraping completed. {len(companies)} companies saved.')
     else:
-        print('No companies scraped.')
+        print('❌ No companies scraped.')
+        if ci_mode:
+            exit(1)
 
 if __name__ == '__main__':
     main()
+

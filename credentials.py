@@ -1,3 +1,5 @@
 # credentials.py
-username = 'username'
-password = 'password'
+import os
+
+username = os.environ.get('ITVIEC_USERNAME', 'username')
+password = os.environ.get('ITVIEC_PASSWORD', 'password')
