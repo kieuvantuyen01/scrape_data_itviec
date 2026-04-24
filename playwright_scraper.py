@@ -14,13 +14,13 @@ def login_playwright(page):
             print("⚠ No credentials — crawling anonymously.")
             return False
 
-        page.goto(f'{base_url}/sign_in', wait_until='networkidle', timeout=30000)
+        page.goto(f'{base_url}/sign_in', wait_until='domcontentloaded', timeout=60000)
 
         # Điền form login
         page.fill('input[name="user[email]"]', username)
         page.fill('input[name="user[password]"]', password)
         page.click('input[type="submit"], button[type="submit"]')
-        page.wait_for_load_state('networkidle', timeout=15000)
+        page.wait_for_load_state('domcontentloaded', timeout=30000)
 
         if 'sign_in' not in page.url:
             print("✅ Login successful!")
@@ -160,8 +160,8 @@ def scrape_companies_playwright():
 
         # Navigate to companies page
         print(f'\n📡 Loading {base_url}/companies/review-company ...')
-        page.goto(f'{base_url}/companies/review-company', wait_until='networkidle', timeout=30000)
-        time.sleep(2)
+        page.goto(f'{base_url}/companies/review-company', wait_until='domcontentloaded', timeout=60000)
+        time.sleep(5)
 
         # Đếm companies ban đầu
         initial_count = page.locator('a.featured-company').count()
