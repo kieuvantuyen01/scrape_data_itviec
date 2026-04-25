@@ -196,7 +196,7 @@ def fetch_companies_by_alphabet(session, headers):
                     href = a.get('href', '')
                     if href.startswith('/companies/'):
                         slug = href.replace('/companies/', '').split('?')[0].replace('/review', '').strip('/')
-                        if slug:
+                        if slug and slug != 'review-company':
                             all_slugs.add(slug)
         except Exception:
             pass
@@ -342,7 +342,11 @@ def scrape_companies_bs4():
     for c in companies:
         c.pop('Slug', None)
         
-        # Chuẩn hoá toàn bộ nội dung của TẤT CẢ công ty trước khi xuất file
+    # Loại bỏ các công ty rác (chẳng hạn như 'review-company')
+    companies = [c for c in companies if 'review-company' not in c.get('URL', '')]
+
+    # Chuẩn hoá toàn bộ nội dung của TẤT CẢ công ty trước khi xuất file
+    for c in companies:
         for k, v in c.items():
             if isinstance(v, str):
                 # Xoá các khoảng trắng thừa và ký tự xuống dòng

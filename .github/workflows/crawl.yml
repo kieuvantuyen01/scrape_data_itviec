@@ -1,16 +1,15 @@
-name: Crawl ITviec Companies
+name: Crawl ITviec Jobs & Companies
 
 on:
-  # 00:00 UTC = 07:00 ICT mỗi ngày
   schedule:
     - cron: '0 0 * * *'
-  # Cho phép chạy thủ công từ Actions tab
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
-# Không chạy song song: tránh race condition khi push
 concurrency:
   group: crawl
   cancel-in-progress: false
@@ -22,7 +21,6 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # ── Checkout repo ──────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -33,12 +31,11 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      # ── Install dependencies ───────────────────────────
-      - name: Install dependencies
+      - name: Install dependencies (Python)
         run: pip install -r requirements.txt
 
-      # ── Chạy scraper ───────────────────────────────────
-      - name: Run scraper
+      # ── Chạy scraper Python (Công ty) ─────────────────
+      - name: Run Python Scraper (Companies)
         env:
           CI: 'true'
           SCRAPE_METHOD: 'bs4'
@@ -46,6 +43,39 @@ jobs:
           ITVIEC_USERNAME: ${{ secrets.ITVIEC_USERNAME }}
           ITVIEC_PASSWORD: ${{ secrets.ITVIEC_PASSWORD }}
         run: python scrape.py
+
+      # ── Setup Node.js ──────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── Chạy scraper NodeJS (Việc làm) ─────────────────
+      - name: Run NodeJS Scraper (Jobs)
+        run: |
+          cd itviec-scraper
+          npm install
+          npx playwright install chromium
+          npm run scrape:jobs
+
+      # ── Chuẩn bị giao diện web (public) ───────────────
+      - name: Build static site
+        run: |
+          mkdir -p public
+          cp itviec-scraper/index.html public/
+          cp itviec-scraper/dashboard.html public/
+          cp itviec-scraper/companies.html public/
+          cp itviec-scraper/itviec-jobs.json public/ || true
+          cp companies_detailed.json public/ || true
+
+      # ── Tải Artifact cho GitHub Pages ─────────────────
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
 
       # ── Upload artifacts ───────────────────────────────
       - name: Upload scraped data
@@ -56,17 +86,8 @@ jobs:
           path: |
             companies_detailed.json
             companies_detailed.csv
+            itviec-scraper/itviec-jobs.json
           retention-days: 30
-          if-no-files-found: warn
-
-      # ── Upload debug HTML (để kiểm tra nếu lỗi) ────────
-      - name: Upload debug artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-html-${{ github.run_id }}
-          path: debug/
-          retention-days: 7
           if-no-files-found: warn
 
       # ── Commit & Push ──────────────────────────────────
@@ -75,17 +96,15 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Kiểm tra có thay đổi không
-          CHANGED=$(git status --porcelain companies_detailed.json companies_detailed.csv 2>/dev/null)
+          CHANGED=$(git status --porcelain companies_detailed.json companies_detailed.csv itviec-scraper/itviec-jobs.json 2>/dev/null)
           if [ -z "$CHANGED" ]; then
             echo "ℹ️ No changes detected — nothing to commit."
             exit 0
           fi
 
-          git add companies_detailed.json companies_detailed.csv 2>/dev/null || true
+          git add companies_detailed.json companies_detailed.csv itviec-scraper/itviec-jobs.json 2>/dev/null || true
           git commit -m "chore: crawl $(date -u +%Y-%m-%d) [skip ci]"
 
-          # Push với retry (tránh race condition)
           for i in 1 2 3; do
             echo "=== Push attempt $i ==="
             git fetch origin main
@@ -99,3 +118,15 @@ jobs:
 
           echo "::error::Failed to push after 3 attempts."
           exit 1
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    needs: scrape
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
