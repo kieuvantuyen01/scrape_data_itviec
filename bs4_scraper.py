@@ -241,26 +241,33 @@ def scrape_company_detail(session, headers, company_url):
             response = session.get(overview_link, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
         
-        for div in soup.find_all(['div', 'section', 'p'], class_=re.compile(r'company__')):
-            cls = ' '.join(div.get('class', []))
-            text = div.get_text(separator='\n', strip=True)
+        # Lấy các chi tiết khác (Overview, General info, Key skills, v.v...)
+        # ITviec hiện dùng Tailwind/Utility class, nên ta sẽ quét qua các thẻ h2
+        for h2 in soup.find_all('h2'):
+            title = h2.get_text(strip=True).lower()
+            parent = h2.parent
+            if not parent:
+                continue
+                
+            text = parent.get_text(separator='\n', strip=True)
+            # Bỏ tiêu đề h2 ra khỏi nội dung
+            text = re.sub(f'^{re.escape(h2.get_text(strip=True))}\n', '', text, flags=re.IGNORECASE).strip()
+            
             if not text or len(text) < 5:
                 continue
-            
-            if 'overview' in cls:
+                
+            if 'company overview' in title:
                 details['Company Overview'] = text
-            elif 'general-info' in cls:
+            elif 'general information' in title:
                 details['General Information'] = text
-            elif 'key-skills' in cls or 'tech-stack' in cls:
+            elif 'key skills' in title:
                 details['Key Skills'] = text
-            elif 'love-working' in cls or 'why-love' in cls:
+            elif 'love working' in title:
                 details["Why You'll Love Working Here"] = text
-            elif 'location' in cls and 'Location' not in details:
+            elif 'location' in title and 'Location' not in details:
                 details['Location'] = text
-            elif 'description' in cls and 'Description' not in details:
+            elif 'description' in title and 'Description' not in details:
                 details['Description'] = text
-            elif 'type' in cls:
-                details['Type'] = text
         
     except Exception as e:
         print(f'      Detail error: {e}')
