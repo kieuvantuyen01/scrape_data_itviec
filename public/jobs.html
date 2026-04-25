@@ -158,7 +158,10 @@
 
   <section class="filters" id="filters" hidden>
     <input type="search" id="q" placeholder="Tìm title / company / skill…" />
-    <select id="f-location"><option value="">All locations</option></select>
+    <select id="f-location">
+      <option value="">All locations</option>
+      <option value="Ha Noi" selected>Ha Noi</option>
+    </select>
     <select id="f-mode">
       <option value="">All modes</option>
       <option value="office">At office</option>
@@ -219,7 +222,7 @@ python -m http.server 8000</pre>
     const PAGE_SIZE = 25;
     const state = {
       jobs: [],
-      filter: { q: '', location: '', mode: '', quick: '', skill: '', company: '' },
+      filter: { q: '', location: 'Ha Noi', mode: '', quick: '', skill: '', company: '' },
       sort: 'posted',
       page: 1,
       _visibleList: [],
@@ -483,7 +486,7 @@ python -m http.server 8000</pre>
       const locs = [...new Set(state.jobs.map(j => j.location).filter(Boolean))].sort();
       document.getElementById('f-location').innerHTML =
         '<option value="">All locations</option>' +
-        locs.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+        locs.map(l => `<option value="${esc(l)}" ${l === state.filter.location ? 'selected' : ''}>${esc(l)}</option>`).join('');
     }
 
     function renderCharts() {
@@ -906,10 +909,10 @@ python -m http.server 8000</pre>
       state.filter.quick = e.target.value; state.page = 1; renderAll();
     });
     document.getElementById('btn-clear').addEventListener('click', () => {
-      state.filter = { q: '', location: '', mode: '', quick: '', skill: '', company: '' };
+      state.filter = { q: '', location: 'Ha Noi', mode: '', quick: '', skill: '', company: '' };
       state.page = 1;
       document.getElementById('q').value = '';
-      document.getElementById('f-location').value = '';
+      document.getElementById('f-location').value = 'Ha Noi';
       document.getElementById('f-mode').value = '';
       document.getElementById('f-quick').value = '';
       renderAll();
