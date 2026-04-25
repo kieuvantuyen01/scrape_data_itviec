@@ -337,6 +337,7 @@ python -m http.server 8000</pre>
         <tr>
           <th class="td-stt" data-col="stt">STT <span class="sort-icon">↕</span></th>
           <th data-col="Name">Tên công ty <span class="sort-icon">↕</span></th>
+          <th data-col="Email">Email <span class="sort-icon">↕</span></th>
           <th data-col="City">Thành phố <span class="sort-icon">↕</span></th>
           <th data-col="Rating">Đánh giá <span class="sort-icon">↕</span></th>
           <th data-col="Jobs">Việc làm <span class="sort-icon">↕</span></th>
@@ -473,6 +474,7 @@ python -m http.server 8000</pre>
             : esc(c.Name || '—')
           }
         </td>
+        <td>${c.Email ? `<a href="mailto:${esc(c.Email)}">${esc(c.Email)}</a>` : '<span style="color:var(--muted)">—</span>'}</td>
         <td>
           ${c.City
             ? `<span class="badge ${norm(c.City) === 'ho chi minh' || norm(c.City) === 'ha noi' ? 'green' : ''}">${esc(c.City)}</span>`
@@ -490,7 +492,7 @@ python -m http.server 8000</pre>
     `).join('');
 
     document.getElementById('table-body').innerHTML = rows ||
-      `<tr><td colspan="6"><div class="empty-state"><div class="icon">🔍</div><p>Không có kết quả. Thử bỏ bớt filter.</p></div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state"><div class="icon">🔍</div><p>Không có kết quả. Thử bỏ bớt filter.</p></div></td></tr>`;
 
     renderPagination(list.length);
     updateSortIcons();
@@ -538,11 +540,12 @@ python -m http.server 8000</pre>
 
   // ── CSV Export ─────────────────────────────────────────────────────────────
   function exportCSV() {
-    const rows = [['STT', 'Tên công ty', 'Thành phố', 'Đánh giá', 'Việc làm', 'Địa chỉ']];
+    const rows = [['STT', 'Tên công ty', 'Email', 'Thành phố', 'Đánh giá', 'Việc làm', 'Địa chỉ']];
     for (const c of state.filtered) {
       rows.push([
         c.stt ?? '',
         c.Name ?? '',
+        c.Email ?? '',
         c.City ?? '',
         c.Rating ?? '',
         c.Jobs ?? '',

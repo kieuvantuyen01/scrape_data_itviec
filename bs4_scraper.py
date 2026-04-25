@@ -4,6 +4,7 @@ import time
 import random
 import re
 import os
+import pandas as pd
 from bs4 import BeautifulSoup
 from utils.constants import base_url
 from utils.requests_helper import login, get_headers
@@ -361,5 +362,32 @@ def scrape_companies_bs4():
                     clean_val = clean_val[:1000] + '...'
                 c[k] = clean_val
     
+    # Gộp dữ liệu Email từ Excel
+    try:
+        df = pd.read_excel('Tong_hop_doanh_nghiep.xlsx')
+        email_map = {}
+        for _, row in df.iterrows():
+            name = str(row.get('Tên DN', '')).strip().lower()
+            email = str(row.get('Email liên hệ', '')).strip()
+            if name and email and email.lower() != 'nan':
+                email_map[name] = email
+        
+        def find_email(company_name):
+            if not company_name: return ''
+            c_name = str(company_name).lower().strip()
+            if c_name in email_map:
+                return email_map[c_name]
+            for k, v in email_map.items():
+                if k in c_name or c_name in k:
+                    return v
+            return ''
+
+        for c in companies:
+            c['Email'] = find_email(c.get('Name'))
+            
+        print("✅ Đã gộp thành công dữ liệu Email cho các công ty.")
+    except Exception as e:
+        print(f"⚠ Không thể đọc file Excel để gộp Email: {e}")
+
     print(f'\n✅ Total: {len(companies)} companies scraped')
     return companies
