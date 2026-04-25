@@ -355,21 +355,38 @@ python -m http.server 8000</pre>
   const PAGE_SIZE = 50;
 
   const state = {
-    all: [],          // raw data từ JSON
-    filtered: [],     // sau khi filter
+    all: [],
+    filtered: [],
     sort: { col: 'stt', dir: 1 },
-    page: 1,
     filter: { q: '', city: '' },
+    page: 1,
+    lastCrawl: null,
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  function norm(str) { return (str || '').toString().toLowerCase(); }
   function esc(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-    );
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function norm(s) { return String(s ?? '').toLowerCase(); }
+  function fmtDateTime(d) {
+    if (!d) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function relativeFrom(date) {
+    if (!date) return '';
+    const minutes = (Date.now() - date.getTime()) / 60000;
+    if (minutes < 1) return 'vừa xong';
+    if (minutes < 60) return `${Math.round(minutes)} phút trước`;
+    const hours = minutes / 60;
+    if (hours < 24) return `${Math.round(hours)} giờ trước`;
+    const days = hours / 24;
+    if (days < 30) return `${Math.round(days)} ngày trước`;
+    const months = days / 30;
+    if (months < 12) return `${Math.round(months)} tháng trước`;
+    return `${Math.round(months / 12)} năm trước`;
+  }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   function renderStats() {
@@ -383,6 +400,7 @@ python -m http.server 8000</pre>
       { label: 'Thành phố', value: cities.length, sub: 'khu vực hoạt động' },
       { label: 'Đang tuyển', value: withJobs, sub: `${total ? Math.round(withJobs / total * 100) : 0}% tổng số` },
       { label: 'Tổng việc làm', value: totalJobs.toLocaleString('vi-VN'), sub: 'đang đăng tải' },
+      { label: 'Last crawl', value: state.lastCrawl ? fmtDateTime(state.lastCrawl) : '—', sub: state.lastCrawl ? relativeFrom(state.lastCrawl) : '' }
     ];
     document.getElementById('stats-row').innerHTML = cards.map(c => `
       <div class="stat-card">
@@ -553,10 +571,11 @@ python -m http.server 8000</pre>
   }
 
   // ── Load data ─────────────────────────────────────────────────────────────
-  function loadData(data, label) {
+  function loadData(data, label, lastMod) {
     // Đảm bảo có STT
     state.all = data.map((c, i) => ({ stt: c.stt ?? i + 1, ...c }));
     document.getElementById('source-info').textContent = label;
+    if (lastMod) state.lastCrawl = new Date(lastMod);
     document.getElementById('loader').style.display = 'none';
     document.getElementById('no-file').style.display = 'none';
     document.getElementById('app').style.display = 'block';
@@ -619,7 +638,7 @@ python -m http.server 8000</pre>
     f.text().then(t => {
       const data = JSON.parse(t);
       if (!Array.isArray(data)) throw new Error('JSON phải là array');
-      loadData(data, `${f.name} · ${data.length.toLocaleString('vi-VN')} công ty`);
+      loadData(data, `${f.name} · ${data.length.toLocaleString('vi-VN')} công ty`, f.lastModified);
     }).catch(err => alert('Lỗi parse file: ' + err.message));
   });
 
@@ -629,7 +648,8 @@ python -m http.server 8000</pre>
       const res = await fetch('companies_detailed.json');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      loadData(data, `companies_detailed.json · ${data.length.toLocaleString('vi-VN')} công ty`);
+      const lastMod = res.headers.get('Last-Modified');
+      loadData(data, `companies_detailed.json · ${data.length.toLocaleString('vi-VN')} công ty`, lastMod);
     } catch {
       document.getElementById('loader').style.display = 'none';
       document.getElementById('no-file').style.display = 'block';
