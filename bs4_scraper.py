@@ -347,6 +347,11 @@ def scrape_companies_bs4():
 
     # Chuẩn hoá toàn bộ nội dung của TẤT CẢ công ty trước khi xuất file
     for c in companies:
+        # Nếu thiếu City nhưng có Location, trích xuất từ phần sau dấu phẩy cuối cùng
+        if not c.get('City') and c.get('Location'):
+            location_parts = c['Location'].split(',')
+            c['City'] = location_parts[-1].strip()
+
         for k, v in c.items():
             if isinstance(v, str):
                 # Xoá các khoảng trắng thừa và ký tự xuống dòng
