@@ -5,9 +5,8 @@ on:
   push:
     branches: [main]
     paths:
-      - '*.html'
+      - 'public/**'
       - '*.json'
-      - '*.css'
       - '*.js'
       - '.github/workflows/deploy.yml'
   # Cho phép workflow khác gọi (crawl xong → deploy)
