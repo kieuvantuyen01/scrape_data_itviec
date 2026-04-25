@@ -5,28 +5,16 @@ def save_to_csv(companies):
         print("No companies found to save.")
         return
 
-    # Lấy toàn bộ keys từ tất cả các company (thay vì chỉ company đầu tiên)
-    all_keys = []
+    # Khóa cố định dựa trên yêu cầu của người dùng
+    final_keys = ['Name', 'URL', 'Rating', 'City', 'Location', 'Jobs', 'Reviews', 'Best About', 'Description']
     
-    # Định nghĩa thứ tự ưu tiên cho các cột quan trọng
-    priority_keys = ['Name', 'URL', 'Rating', 'City', 'Location', 'Jobs', 'Reviews', 'Type', 'Best About', 'Description', 'Company Overview', 'General Information', 'Key Skills', "Why You'll Love Working Here"]
-    
-    # Gom tất cả các key có xuất hiện
-    seen_keys = set()
-    for company in companies:
-        seen_keys.update(company.keys())
-        
-    # Thêm các key ưu tiên trước
-    for pk in priority_keys:
-        if pk in seen_keys:
-            all_keys.append(pk)
-            
-    # Thêm các key còn lại
-    for k in seen_keys:
-        if k not in all_keys:
-            all_keys.append(k)
+    # Chuẩn hoá data: Chỉ lấy những key nằm trong final_keys, nếu không có thì để trống
+    cleaned_companies = []
+    for c in companies:
+        cleaned_c = {k: c.get(k, '') for k in final_keys}
+        cleaned_companies.append(cleaned_c)
 
     with open('companies_detailed.csv', 'w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=all_keys)
+        writer = csv.DictWriter(file, fieldnames=final_keys)
         writer.writeheader()
-        writer.writerows(companies)
+        writer.writerows(cleaned_companies)

@@ -341,6 +341,16 @@ def scrape_companies_bs4():
     
     for c in companies:
         c.pop('Slug', None)
+        
+        # Chuẩn hoá toàn bộ nội dung của TẤT CẢ công ty trước khi xuất file
+        for k, v in c.items():
+            if isinstance(v, str):
+                # Xoá các khoảng trắng thừa và ký tự xuống dòng
+                clean_val = re.sub(r'\s+', ' ', v).strip()
+                # Giới hạn độ dài text để file CSV không bị phình to hoặc rác
+                if len(clean_val) > 1000:
+                    clean_val = clean_val[:1000] + '...'
+                c[k] = clean_val
     
     print(f'\n✅ Total: {len(companies)} companies scraped')
     return companies
