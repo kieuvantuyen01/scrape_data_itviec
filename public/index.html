@@ -8,20 +8,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #0a0b10;
-      --surface: #13151f;
-      --surface2: #1b1e2e;
-      --border: #2a2e45;
-      --accent: #6366f1;
-      --accent2: #818cf8;
-      --green: #22c55e;
+      --bg: #f7f8fa;
+      --surface: #fff;
+      --surface2: #f1f5f9;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent2: #1d4ed8;
+      --green: #16a34a;
       --amber: #f59e0b;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
+      --text: #1a1f2e;
+      --muted: #6b7280;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -37,8 +37,8 @@
       position: fixed;
       top: -50%; left: -50%;
       width: 200%; height: 200%;
-      background: radial-gradient(circle at 30% 20%, rgba(99,102,241,0.08) 0%, transparent 50%),
-                  radial-gradient(circle at 70% 80%, rgba(168,85,247,0.06) 0%, transparent 50%);
+      background: radial-gradient(circle at 30% 20%, rgba(37,99,235,0.05) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(22,163,74,0.04) 0%, transparent 50%);
       z-index: 0;
       pointer-events: none;
     }
@@ -60,7 +60,7 @@
       justify-content: center;
       font-size: 36px;
       margin-bottom: 24px;
-      box-shadow: 0 8px 32px rgba(99,102,241,0.3);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.2);
       animation: float 3s ease-in-out infinite;
     }
     @keyframes float {
@@ -72,10 +72,8 @@
       font-size: 36px;
       font-weight: 800;
       margin-bottom: 8px;
-      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, #c084fc 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--text);
+      /* Remove background gradient for a cleaner light UI */
     }
     .subtitle {
       font-size: 16px;
@@ -115,7 +113,7 @@
     .card:hover {
       border-color: var(--accent);
       transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(99,102,241,0.15);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.05);
     }
     .card:hover::before { opacity: 1; }
 
@@ -128,8 +126,8 @@
       font-size: 24px;
       margin-bottom: 16px;
     }
-    .card-icon.jobs { background: rgba(99,102,241,0.15); }
-    .card-icon.companies { background: rgba(34,197,94,0.15); }
+    .card-icon.jobs { background: rgba(37,99,235,0.1); color: var(--accent); }
+    .card-icon.companies { background: rgba(22,163,74,0.1); color: var(--green); }
 
     .card h2 {
       font-size: 20px;
@@ -190,7 +188,7 @@
       text-decoration: none;
       transition: color 0.2s;
     }
-    footer a:hover { color: #fff; }
+    footer a:hover { color: var(--accent); text-decoration: underline; }
 
     @media (max-width: 600px) {
       h1 { font-size: 28px; }
