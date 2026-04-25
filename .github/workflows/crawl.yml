@@ -58,16 +58,6 @@ jobs:
           npx playwright install chromium
           npm run scrape:jobs
 
-      # ── Chuẩn bị giao diện web (public) ───────────────
-      - name: Build static site
-        run: |
-          mkdir -p public
-          cp itviec-scraper/index.html public/
-          cp itviec-scraper/dashboard.html public/
-          cp itviec-scraper/companies.html public/
-          cp itviec-scraper/itviec-jobs.json public/ || true
-          cp companies_detailed.json public/ || true
-
       # ── Tải Artifact cho GitHub Pages ─────────────────
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -84,9 +74,9 @@ jobs:
         with:
           name: scraped-data-${{ github.run_id }}
           path: |
-            companies_detailed.json
-            companies_detailed.csv
-            itviec-scraper/itviec-jobs.json
+            public/companies_detailed.json
+            public/companies_detailed.csv
+            public/itviec-jobs.json
           retention-days: 30
           if-no-files-found: warn
 
@@ -96,13 +86,13 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          CHANGED=$(git status --porcelain companies_detailed.json companies_detailed.csv itviec-scraper/itviec-jobs.json 2>/dev/null)
+          CHANGED=$(git status --porcelain public/companies_detailed.json public/companies_detailed.csv public/itviec-jobs.json 2>/dev/null)
           if [ -z "$CHANGED" ]; then
             echo "ℹ️ No changes detected — nothing to commit."
             exit 0
           fi
 
-          git add companies_detailed.json companies_detailed.csv itviec-scraper/itviec-jobs.json 2>/dev/null || true
+          git add public/companies_detailed.json public/companies_detailed.csv public/itviec-jobs.json 2>/dev/null || true
           git commit -m "chore: crawl $(date -u +%Y-%m-%d) [skip ci]"
 
           for i in 1 2 3; do

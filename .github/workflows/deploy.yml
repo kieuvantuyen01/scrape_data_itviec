@@ -46,11 +46,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload toàn bộ thư mục gốc (HTML + JSON data)
-          path: '.'
+          path: 'public'
 
       - name: Deploy to GitHub Pages
         id: deployment
