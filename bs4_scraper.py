@@ -430,7 +430,7 @@ def scrape_companies_bs4():
                     'Name': v['Tên DN'],
                     'Email': v['Email liên hệ'],
                     'URL': '',
-                    'City': '',
+                    'City': 'Ha Noi',
                     'Rating': '',
                     'Jobs': '0',
                     'Location': 'Nguồn: Danh sách tự gộp',
