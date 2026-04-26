@@ -372,14 +372,43 @@ def scrape_companies_bs4():
             if name and email and email.lower() != 'nan':
                 email_map[name] = email
         
+        prefixes = ['công ty tnhh ', 'công ty cổ phần ', 'công ty cp ', 'công ty ', 'cty tnhh ', 'cty cp ', 'cty ']
+        suffixes = [' vietnam', ' việt nam', ' jsc', ' co., ltd', ' ltd.', ' ltd', ' co.', ' company limited', ' company', ' inc.', ' inc', ' corporation', ' corp.', ' corp', ' group']
+
+        def normalize(name):
+            n = str(name).lower().strip()
+            for p in prefixes:
+                if n.startswith(p):
+                    n = n[len(p):].strip()
+            changed = True
+            while changed:
+                changed = False
+                for s in suffixes:
+                    if n.endswith(s):
+                        n = n[:-len(s)].strip()
+                        changed = True
+            return n
+
+        norm_email_map = {}
+        for k, v in email_map.items():
+            norm_email_map[normalize(k)] = v
+
         def find_email(company_name):
             if not company_name: return ''
             c_name = str(company_name).lower().strip()
+            
             if c_name in email_map:
                 return email_map[c_name]
-            for k, v in email_map.items():
-                if k in c_name or c_name in k:
+                
+            norm_c_name = normalize(c_name)
+            
+            if norm_c_name in norm_email_map:
+                return norm_email_map[norm_c_name]
+                
+            for k, v in norm_email_map.items():
+                if len(k) > 2 and re.search(r'\b' + re.escape(k) + r'\b', norm_c_name):
                     return v
+                    
             return ''
 
         for c in companies:
