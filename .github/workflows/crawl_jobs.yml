@@ -1,0 +1,95 @@
+name: Crawl ITviec Jobs
+
+on:
+  schedule:
+    # Chạy lúc 23:30 UTC hàng ngày, tức 06:30 sáng giờ Việt Nam (tránh giờ cao điểm 00:00 UTC của Github)
+    - cron: '30 23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  scrape_jobs:
+    name: 💼 Crawl Jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run NodeJS Scraper (Jobs)
+        run: |
+          cd itviec-scraper
+          npm install
+          npx playwright install chromium
+          npm run scrape:jobs
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Upload scraped data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobs-data-${{ github.run_id }}
+          path: public/itviec-jobs.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Commit & push results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          CHANGED=$(git status --porcelain public/itviec-jobs.json 2>/dev/null)
+          if [ -z "$CHANGED" ]; then
+            echo "ℹ️ No changes detected — nothing to commit."
+            exit 0
+          fi
+
+          git add public/itviec-jobs.json 2>/dev/null || true
+          git commit -m "chore: crawl jobs $(date -u +%Y-%m-%d) [skip ci]"
+
+          for i in 1 2 3; do
+            echo "=== Push attempt $i ==="
+            git fetch origin main
+            if git pull --rebase origin main && git push; then
+              echo "✅ Pushed successfully (attempt $i)"
+              exit 0
+            fi
+            echo "⚠️ Attempt $i failed, retrying in 8s..."
+            sleep 8
+          done
+
+          echo "::error::Failed to push after 3 attempts."
+          exit 1
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    needs: scrape_jobs
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

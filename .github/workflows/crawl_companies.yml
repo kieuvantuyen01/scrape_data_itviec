@@ -1,9 +1,9 @@
-name: Crawl ITviec Jobs & Companies
+name: Crawl ITviec Companies
 
 on:
   schedule:
-    # Chạy lúc 23:30 UTC, tức 06:30 sáng giờ Việt Nam (tránh giờ cao điểm 00:00 UTC của Github)
-    - cron: '30 23 * * *'
+    # Chạy lúc 23:30 UTC mỗi Chủ Nhật (tức 06:30 sáng Chủ Nhật giờ Việt Nam)
+    - cron: '30 23 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  scrape:
-    name: 🔍 Crawl & Commit
+  scrape_companies:
+    name: 🏢 Crawl Companies
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -25,7 +25,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Setup Python ───────────────────────────────────
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -35,7 +34,6 @@ jobs:
       - name: Install dependencies (Python)
         run: pip install -r requirements.txt
 
-      # ── Chạy scraper Python (Công ty) ─────────────────
       - name: Run Python Scraper (Companies)
         env:
           CI: 'true'
@@ -45,21 +43,6 @@ jobs:
           ITVIEC_PASSWORD: ${{ secrets.ITVIEC_PASSWORD }}
         run: python scrape.py
 
-      # ── Setup Node.js ──────────────────────────────────
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # ── Chạy scraper NodeJS (Việc làm) ─────────────────
-      - name: Run NodeJS Scraper (Jobs)
-        run: |
-          cd itviec-scraper
-          npm install
-          npx playwright install chromium
-          npm run scrape:jobs
-
-      # ── Tải Artifact cho GitHub Pages ─────────────────
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
@@ -68,33 +51,30 @@ jobs:
         with:
           path: public
 
-      # ── Upload artifacts ───────────────────────────────
       - name: Upload scraped data
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scraped-data-${{ github.run_id }}
+          name: companies-data-${{ github.run_id }}
           path: |
             public/companies_detailed.json
             public/companies_detailed.csv
-            public/itviec-jobs.json
           retention-days: 30
           if-no-files-found: warn
 
-      # ── Commit & Push ──────────────────────────────────
       - name: Commit & push results
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          CHANGED=$(git status --porcelain public/companies_detailed.json public/companies_detailed.csv public/itviec-jobs.json 2>/dev/null)
+          CHANGED=$(git status --porcelain public/companies_detailed.json public/companies_detailed.csv 2>/dev/null)
           if [ -z "$CHANGED" ]; then
             echo "ℹ️ No changes detected — nothing to commit."
             exit 0
           fi
 
-          git add public/companies_detailed.json public/companies_detailed.csv public/itviec-jobs.json 2>/dev/null || true
-          git commit -m "chore: crawl $(date -u +%Y-%m-%d) [skip ci]"
+          git add public/companies_detailed.json public/companies_detailed.csv 2>/dev/null || true
+          git commit -m "chore: crawl companies $(date -u +%Y-%m-%d) [skip ci]"
 
           for i in 1 2 3; do
             echo "=== Push attempt $i ==="
@@ -112,7 +92,7 @@ jobs:
 
   deploy:
     name: 🚀 Deploy to GitHub Pages
-    needs: scrape
+    needs: scrape_companies
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
