@@ -365,12 +365,6 @@ def scrape_companies_bs4():
     # Gộp dữ liệu Email từ Excel
     try:
         df = pd.read_excel('Tong_hop_doanh_nghiep.xlsx')
-        email_map = {}
-        for _, row in df.iterrows():
-            name = str(row.get('Tên DN', '')).strip().lower()
-            email = str(row.get('Email liên hệ', '')).strip()
-            if name and email and email.lower() != 'nan':
-                email_map[name] = email
         
         prefixes = ['công ty tnhh ', 'công ty cổ phần ', 'công ty cp ', 'công ty ', 'cty tnhh ', 'cty cp ', 'cty ']
         suffixes = [' vietnam', ' việt nam', ' jsc', ' co., ltd', ' ltd.', ' ltd', ' co.', ' company limited', ' company', ' inc.', ' inc', ' corporation', ' corp.', ' corp', ' group']
@@ -389,32 +383,62 @@ def scrape_companies_bs4():
                         changed = True
             return n
 
-        norm_email_map = {}
-        for k, v in email_map.items():
-            norm_email_map[normalize(k)] = v
+        excel_companies = {}
+        for _, row in df.iterrows():
+            orig_name = str(row.get('Tên DN', '')).strip()
+            name_lower = orig_name.lower()
+            email = str(row.get('Email liên hệ', '')).strip()
+            if orig_name and email and email.lower() != 'nan':
+                norm_key = normalize(name_lower)
+                if norm_key not in excel_companies:
+                    excel_companies[norm_key] = {
+                        'Tên DN': orig_name,
+                        'Email liên hệ': email,
+                        'matched': False,
+                        'name_lower': name_lower
+                    }
 
         def find_email(company_name):
             if not company_name: return ''
             c_name = str(company_name).lower().strip()
             
-            if c_name in email_map:
-                return email_map[c_name]
-                
+            for k, v in excel_companies.items():
+                if v['name_lower'] == c_name:
+                    v['matched'] = True
+                    return v['Email liên hệ']
+                    
             norm_c_name = normalize(c_name)
             
-            if norm_c_name in norm_email_map:
-                return norm_email_map[norm_c_name]
+            if norm_c_name in excel_companies:
+                excel_companies[norm_c_name]['matched'] = True
+                return excel_companies[norm_c_name]['Email liên hệ']
                 
-            for k, v in norm_email_map.items():
+            for k, v in excel_companies.items():
                 if len(k) > 2 and re.search(r'\b' + re.escape(k) + r'\b', norm_c_name):
-                    return v
+                    v['matched'] = True
+                    return v['Email liên hệ']
                     
             return ''
 
         for c in companies:
             c['Email'] = find_email(c.get('Name'))
             
-        print("✅ Đã gộp thành công dữ liệu Email cho các công ty.")
+        unmatched_count = 0
+        for k, v in excel_companies.items():
+            if not v['matched']:
+                companies.append({
+                    'Name': v['Tên DN'],
+                    'Email': v['Email liên hệ'],
+                    'URL': '',
+                    'City': '',
+                    'Rating': '',
+                    'Jobs': '0',
+                    'Location': 'Nguồn: Danh sách tự gộp',
+                    'Description': ''
+                })
+                unmatched_count += 1
+                
+        print(f"✅ Đã gộp dữ liệu Email. Bổ sung thêm {unmatched_count} công ty từ file Excel chưa có mặt trên ITviec.")
     except Exception as e:
         print(f"⚠ Không thể đọc file Excel để gộp Email: {e}")
 
