@@ -2,7 +2,8 @@ name: Crawl ITviec Jobs & Companies
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Chạy lúc 00:00 UTC, tức 07:00 sáng giờ Việt Nam (UTC+7)
+    # Chạy lúc 23:30 UTC, tức 06:30 sáng giờ Việt Nam (tránh giờ cao điểm 00:00 UTC của Github)
+    - cron: '30 23 * * *'
   workflow_dispatch:
 
 permissions:
