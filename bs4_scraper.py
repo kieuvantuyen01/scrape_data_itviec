@@ -261,9 +261,9 @@ def scrape_company_detail(session, headers, company_url):
                 details['Company Overview'] = text
             elif 'general information' in title:
                 details['General Information'] = text
-                size_match = re.search(r'Company size\s+(.+?employees)', text, re.IGNORECASE)
+                size_match = re.search(r'Company size\s+([\s\S]{1,30}?)\s*employees', text, re.IGNORECASE)
                 if size_match:
-                    details['Company Size'] = size_match.group(1).strip()
+                    details['Company Size'] = re.sub(r'\s+', ' ', size_match.group(1)).strip()
             elif 'key skills' in title:
                 details['Key Skills'] = text
             elif 'love working' in title:
