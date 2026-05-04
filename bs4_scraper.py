@@ -261,6 +261,9 @@ def scrape_company_detail(session, headers, company_url):
                 details['Company Overview'] = text
             elif 'general information' in title:
                 details['General Information'] = text
+                size_match = re.search(r'Company size\s+(.+?employees)', text, re.IGNORECASE)
+                if size_match:
+                    details['Company Size'] = size_match.group(1).strip()
             elif 'key skills' in title:
                 details['Key Skills'] = text
             elif 'love working' in title:
@@ -433,6 +436,7 @@ def scrape_companies_bs4():
                     'City': 'Ha Noi',
                     'Rating': '',
                     'Jobs': '0',
+                    'Company Size': '',
                     'Location': 'Nguồn: Danh sách tự gộp',
                     'Description': ''
                 })
