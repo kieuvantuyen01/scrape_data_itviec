@@ -162,3 +162,4 @@ cython_debug/
 .DS_Store
 test_match.py
 .gitignore
+test_merge.py
