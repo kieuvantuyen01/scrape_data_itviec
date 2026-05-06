@@ -391,40 +391,47 @@ def scrape_companies_bs4():
             orig_name = str(row.get('Tên DN', '')).strip()
             name_lower = orig_name.lower()
             email = str(row.get('Email liên hệ', '')).strip()
+            size = str(row.get('Quy mô', '')).strip()
+            if size.lower() == 'nan': size = ''
+            
             if orig_name and email and email.lower() != 'nan':
                 norm_key = normalize(name_lower)
                 if norm_key not in excel_companies:
                     excel_companies[norm_key] = {
                         'Tên DN': orig_name,
                         'Email liên hệ': email,
+                        'Quy mô': size,
                         'matched': False,
                         'name_lower': name_lower
                     }
 
-        def find_email(company_name):
-            if not company_name: return ''
+        def get_excel_data(company_name):
+            if not company_name: return {}
             c_name = str(company_name).lower().strip()
             
             for k, v in excel_companies.items():
                 if v['name_lower'] == c_name:
                     v['matched'] = True
-                    return v['Email liên hệ']
+                    return v
                     
             norm_c_name = normalize(c_name)
             
             if norm_c_name in excel_companies:
                 excel_companies[norm_c_name]['matched'] = True
-                return excel_companies[norm_c_name]['Email liên hệ']
+                return excel_companies[norm_c_name]
                 
             for k, v in excel_companies.items():
                 if len(k) > 2 and re.search(r'\b' + re.escape(k) + r'\b', norm_c_name):
                     v['matched'] = True
-                    return v['Email liên hệ']
+                    return v
                     
-            return ''
+            return {}
 
         for c in companies:
-            c['Email'] = find_email(c.get('Name'))
+            excel_data = get_excel_data(c.get('Name'))
+            c['Email'] = excel_data.get('Email liên hệ', '')
+            if excel_data.get('Quy mô') and not c.get('Company Size'):
+                c['Company Size'] = excel_data.get('Quy mô')
             
         unmatched_count = 0
         for k, v in excel_companies.items():
@@ -436,7 +443,7 @@ def scrape_companies_bs4():
                     'City': 'Ha Noi',
                     'Rating': '',
                     'Jobs': '0',
-                    'Company Size': '',
+                    'Company Size': v['Quy mô'],
                     'Location': 'Nguồn: Danh sách tự gộp',
                     'Description': ''
                 })
